@@ -1,0 +1,15 @@
+[sweep]
+base_config = "configs/part2_experiment.toml"
+output_dir = "outputs/part2"
+run_name_prefix = ""
+datasets = ["swiss_roll", "gaussians", "circles"]
+dims = [2, 8, 32]
+prediction_types = ["x", "v"]
+loss_types = ["x", "v"]
+
+[plot]
+summary_rows = 2
+summary_cols = 3
+summary_datasets = ["swiss_roll", "gaussians", "circles"]
+summary_output_pattern = "d{dim}_{prediction_type}pred_{loss_type}loss_summary_2x3.png"
+dpi = 200

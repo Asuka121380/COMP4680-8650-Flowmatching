@@ -8,7 +8,7 @@ from torch import nn
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
-from training.losses import v_prediction_loss
+from training.losses import flow_matching_loss
 
 
 @dataclass
@@ -24,6 +24,9 @@ def train_model(
 	*,
 	steps: int = 25_000,
 	learning_rate: float = 1e-3,
+	prediction_type: str = "v",
+	loss_type: str = "v",
+	t_clip_eps: float = 1e-5,
 	device: torch.device | str | None = None,
 	log_every: int = 500,
 	checkpoint_path: Path | None = None,
@@ -46,7 +49,13 @@ def train_model(
 			batch = next(iterator)
 		batch = batch.to(device).float()
 		optimizer.zero_grad(set_to_none=True)
-		loss = v_prediction_loss(model, batch)
+		loss = flow_matching_loss(
+			model,
+			batch,
+			prediction_type=prediction_type,
+			loss_type=loss_type,
+			t_clip_eps=t_clip_eps,
+		)
 		loss.backward()
 		if max_grad_norm is not None:
 			torch.nn.utils.clip_grad_norm_(model.parameters(), max_grad_norm)

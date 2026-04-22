@@ -1,0 +1,31 @@
+[train]
+steps = 25000
+batch_size = 1024
+learning_rate = 0.001
+sampling_steps = 50
+seed = 42
+
+[data]
+name = "swiss_roll"
+dim = 2
+
+[flow_matching]
+prediction_type = "v"
+loss_type = "v"
+t_clip_eps = 0.01
+sampling_clip_t = 0.01
+
+[model]
+hidden_dim = 256
+time_embedding_dim = 128
+num_hidden_layers = 5
+
+[plot]
+max_points = 5000
+dpi = 200
+save_result_npz = true
+
+[paths]
+output_dir = "outputs/part2"
+data_dir = "data"
+run_name = ""
