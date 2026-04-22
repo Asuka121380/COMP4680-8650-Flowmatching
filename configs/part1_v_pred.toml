@@ -1,0 +1,22 @@
+[train]
+steps = 25000
+batch_size = 1024
+learning_rate = 0.001
+sampling_steps = 50
+seed = 42
+max_points = 5000
+dpi = 200
+
+[data]
+name = "swiss_roll"
+dim = 2
+
+[model]
+hidden_dim = 256
+time_embedding_dim = 128
+num_hidden_layers = 5
+
+[paths]
+output_dir = "outputs/part1_v_pred"
+data_dir = "data"
+run_name = ""
