@@ -1,22 +1,25 @@
 [train]
-steps = 25000
+steps = 50000
 batch_size = 1024
-learning_rate = 0.001
+learning_rate = 5e-4
 sampling_steps = 50
 seed = 42
 
 [data]
 name = "swiss_roll"
-dim = 2
+dim = 32
 
 [flow_matching]
-prediction_type = "v"
+prediction_type = "x"
 loss_type = "v"
 t_clip_eps = 0.01
 sampling_clip_t = 0.01
+target_scaling_mode = "sqrt_dim"
+loss_normalization_mode = "none"
+time_weighting_mode = "none"
 
 [model]
-hidden_dim = 256
+hidden_dim = 512
 time_embedding_dim = 128
 num_hidden_layers = 5
 
@@ -26,6 +29,6 @@ dpi = 200
 save_result_npz = true
 
 [paths]
-output_dir = "outputs/part2_experiment"
+output_dir = "outputs/part3"
 data_dir = "data"
 run_name = ""

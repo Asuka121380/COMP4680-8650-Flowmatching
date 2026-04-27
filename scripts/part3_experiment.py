@@ -20,16 +20,16 @@ if str(PROJECT_ROOT) not in sys.path:
 from models.model import FlowMatchingMLP
 from sampling.euler import euler_sample
 from src.dataloader import ToyDiffusionDataset
-from training.train import train_model
+from training.train_part3 import train_model
 
 
 @dataclass
-class Part2Config:
-	output_dir: Path = Path("outputs") / "part2_experiment"
+class Part3Config:
+	output_dir: Path = Path("outputs") / "part3"
 	run_name: str | None = None
 	data_dir: Path | None = Path("data")
 	dataset_name: str = "swiss_roll"
-	dim: int = 2
+	dim: int = 32
 	prediction_type: str = "v"
 	loss_type: str = "v"
 	steps: int = 25_000
@@ -46,6 +46,9 @@ class Part2Config:
 	hidden_dim: int = 256
 	time_embedding_dim: int = 128
 	num_hidden_layers: int = 5
+	target_scaling_mode: str = "none"
+	loss_normalization_mode: str = "none"
+	time_weighting_mode: str = "none"
 
 
 def _optional_path(value: str | None) -> Path | None:
@@ -77,11 +80,11 @@ def _resolve_run_dir(base_output_dir: Path, run_name: str | None) -> Path:
 		suffix += 1
 
 
-def _experiment_key(config: Part2Config) -> str:
+def _experiment_key(config: Part3Config) -> str:
 	return f"{config.dataset_name}_d{config.dim}_{config.prediction_type}pred_{config.loss_type}loss"
 
 
-def load_config(config_path: Path) -> Part2Config:
+def load_config(config_path: Path) -> Part3Config:
 	with config_path.open("rb") as f:
 		data = tomllib.load(f)
 	train_cfg = data.get("train", {})
@@ -90,16 +93,19 @@ def load_config(config_path: Path) -> Part2Config:
 	paths_cfg = data.get("paths", {})
 	fm_cfg = data.get("flow_matching", {})
 	plot_cfg = data.get("plot", {})
-	return Part2Config(
-		output_dir=Path(paths_cfg.get("output_dir", "outputs/part2_experiment")),
+	return Part3Config(
+		output_dir=Path(paths_cfg.get("output_dir", "outputs/part3")),
 		run_name=paths_cfg.get("run_name", None),
 		data_dir=_optional_path(paths_cfg.get("data_dir", "data")),
 		dataset_name=str(data_cfg.get("name", "swiss_roll")),
-		dim=int(data_cfg.get("dim", 2)),
+		dim=int(data_cfg.get("dim", 32)),
 		prediction_type=str(fm_cfg.get("prediction_type", "v")),
 		loss_type=str(fm_cfg.get("loss_type", "v")),
 		t_clip_eps=float(fm_cfg.get("t_clip_eps", 1e-5)),
 		sampling_clip_t=_optional_float(fm_cfg.get("sampling_clip_t", 1e-5)),
+		target_scaling_mode=str(fm_cfg.get("target_scaling_mode", "none")),
+		loss_normalization_mode=str(fm_cfg.get("loss_normalization_mode", "none")),
+		time_weighting_mode=str(fm_cfg.get("time_weighting_mode", "none")),
 		steps=int(train_cfg.get("steps", 25_000)),
 		batch_size=int(train_cfg.get("batch_size", 1024)),
 		learning_rate=float(train_cfg.get("learning_rate", 1e-3)),
@@ -115,7 +121,7 @@ def load_config(config_path: Path) -> Part2Config:
 	)
 
 
-def merge_cli_overrides(config: Part2Config, args: argparse.Namespace) -> Part2Config:
+def merge_cli_overrides(config: Part3Config, args: argparse.Namespace) -> Part3Config:
 	if args.output_dir is not None:
 		config.output_dir = args.output_dir
 	if args.data_dir is not None:
@@ -134,6 +140,12 @@ def merge_cli_overrides(config: Part2Config, args: argparse.Namespace) -> Part2C
 		config.t_clip_eps = args.t_clip_eps
 	if args.sampling_clip_t is not None:
 		config.sampling_clip_t = args.sampling_clip_t
+	if args.target_scaling_mode is not None:
+		config.target_scaling_mode = args.target_scaling_mode
+	if args.loss_normalization_mode is not None:
+		config.loss_normalization_mode = args.loss_normalization_mode
+	if args.time_weighting_mode is not None:
+		config.time_weighting_mode = args.time_weighting_mode
 	if args.steps is not None:
 		config.steps = args.steps
 	if args.batch_size is not None:
@@ -182,7 +194,7 @@ def _plot_comparison(real: np.ndarray, generated: np.ndarray, title: str, save_p
 	plt.close(fig)
 
 
-def run_experiment(config: Part2Config, *, save_single_comparison: bool | None = None) -> Path:
+def run_experiment(config: Part3Config, *, save_single_comparison: bool | None = None) -> Path:
 	if save_single_comparison is None:
 		save_single_comparison = config.save_single_comparison
 	torch.manual_seed(config.seed)
@@ -209,6 +221,9 @@ def run_experiment(config: Part2Config, *, save_single_comparison: bool | None =
 		prediction_type=config.prediction_type,
 		loss_type=config.loss_type,
 		t_clip_eps=config.t_clip_eps,
+		target_scaling_mode=config.target_scaling_mode,
+		loss_normalization_mode=config.loss_normalization_mode,
+		time_weighting_mode=config.time_weighting_mode,
 		checkpoint_path=ckpt_path,
 	)
 	train_time_seconds = perf_counter() - train_start
@@ -256,6 +271,9 @@ def run_experiment(config: Part2Config, *, save_single_comparison: bool | None =
 		"batch_size": config.batch_size,
 		"learning_rate": config.learning_rate,
 		"sampling_steps": config.sampling_steps,
+		"target_scaling_mode": config.target_scaling_mode,
+		"loss_normalization_mode": config.loss_normalization_mode,
+		"time_weighting_mode": config.time_weighting_mode,
 		"train_time_seconds": f"{train_time_seconds:.6f}",
 		"sample_time_seconds": f"{sample_time_seconds:.6f}",
 		"total_time_seconds": f"{total_time_seconds:.6f}",
@@ -277,6 +295,9 @@ def run_experiment(config: Part2Config, *, save_single_comparison: bool | None =
 			dim=config.dim,
 			prediction_type=config.prediction_type,
 			loss_type=config.loss_type,
+			target_scaling_mode=config.target_scaling_mode,
+			loss_normalization_mode=config.loss_normalization_mode,
+			time_weighting_mode=config.time_weighting_mode,
 			train_time_seconds=np.float64(train_time_seconds),
 			sample_time_seconds=np.float64(sample_time_seconds),
 			total_time_seconds=np.float64(total_time_seconds),
@@ -285,8 +306,8 @@ def run_experiment(config: Part2Config, *, save_single_comparison: bool | None =
 
 
 def parse_args() -> argparse.Namespace:
-	parser = argparse.ArgumentParser(description="Part 2 single experiment")
-	parser.add_argument("--config", type=Path, default=Path("configs") / "part2_experiment.toml")
+	parser = argparse.ArgumentParser(description="Part 3 single experiment")
+	parser.add_argument("--config", type=Path, default=Path("configs") / "part3_experiment.toml")
 	parser.add_argument("--output-dir", type=Path, default=None)
 	parser.add_argument("--data-dir", type=Path, default=None)
 	parser.add_argument("--run-name", type=str, default=None)
@@ -296,6 +317,17 @@ def parse_args() -> argparse.Namespace:
 	parser.add_argument("--loss-type", choices=["x", "v"], default=None)
 	parser.add_argument("--t-clip-eps", type=float, default=None)
 	parser.add_argument("--sampling-clip-t", type=float, default=None)
+	parser.add_argument("--target-scaling-mode", choices=["none", "sqrt_dim", "norm"], default=None)
+	parser.add_argument(
+		"--loss-normalization-mode",
+		choices=["none", "dim", "inv_target_norm", "inv_target_norm_sq"],
+		default=None,
+	)
+	parser.add_argument(
+		"--time-weighting-mode",
+		choices=["none", "t", "1_minus_t", "inv_t", "inv_1_minus_t"],
+		default=None,
+	)
 	parser.add_argument("--steps", type=int, default=None)
 	parser.add_argument("--batch-size", type=int, default=None)
 	parser.add_argument("--learning-rate", type=float, default=None)
@@ -314,7 +346,7 @@ def main() -> None:
 	config = load_config(args.config)
 	config = merge_cli_overrides(config, args)
 	run_dir = run_experiment(config)
-	print(f"Saved part 2 results to: {run_dir.resolve()}")
+	print(f"Saved part 3 results to: {run_dir.resolve()}")
 
 
 if __name__ == "__main__":
